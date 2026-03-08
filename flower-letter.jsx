@@ -1,0 +1,968 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+
+// ── Fonts ──────────────────────────────────────────────────────────────────
+const FONT_LINK =
+  "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@300;400;500;600&family=Permanent+Marker&family=Rock+Salt&family=Caveat:wght@600;700&family=Reenie+Beanie&family=Kalam:wght@400;700&family=Covered+By+Your+Grace&display=swap";
+const DISPLAY = "'Syne', sans-serif";
+const BODY    = "'Space Grotesk', sans-serif";
+
+// ── Exact palette from reference image ────────────────────────────────────
+const P = {
+  terracotta:  "#CF5F44",  // top-left bg
+  dustyPink:   "#E8A2B5",  // top-right bg
+  forestGreen: "#2B5248",  // mid-left bg
+  sage:        "#8DB87A",  // mid-right bg
+  peach:       "#F0BB9E",  // lower-left bg
+  chartreuse:  "#B8CA4A",  // lower-right bg
+  periwinkle:  "#8AA8E2",  // bottom-left bg
+  darkTeal:    "#3A6268",  // bottom-right bg
+  maroon:      "#681826",  // top-left circle
+  paleYellow:  "#F4E67A",  // top-right circle
+  lilac:       "#C68DD2",  // mid-left circle
+  caramel:     "#B07C42",  // mid-right circle
+  coral:       "#E86840",  // lower-left circle
+  darkForest:  "#285438",  // lower-right circle
+  amber:       "#F0A040",  // bottom-left circle
+  iceBlue:     "#D0DCF0",  // bottom-right circle
+  // neutrals
+  cream: "#FFF8F3", stone: "#D0C8BC", bark: "#2C1E14",
+  driftwood: "#7A6858", pebble: "#B0A090",
+};
+
+// ── Flower data — no emoji, uses SVG illustrations ─────────────────────────
+const FLOWERS = [
+  { id: "rose",       name: "Rose",     hasLeaf: true  },
+  { id: "tulip",      name: "Tulip",    hasLeaf: true  },
+  { id: "sunflower",  name: "Sunflower",hasLeaf: true  },
+  { id: "daisy",      name: "Daisy",    hasLeaf: true  },
+  { id: "blossom",    name: "Blossom",  hasLeaf: true  },
+  { id: "poppy",      name: "Poppy",    hasLeaf: true  },
+  { id: "orchid",     name: "Orchid",   hasLeaf: true  },
+  { id: "hibiscus",   name: "Hibiscus", hasLeaf: true  },
+  { id: "lotus",      name: "Lotus",    hasLeaf: false },
+  { id: "lily",       name: "Lily",     hasLeaf: true  },
+  { id: "pansy",      name: "Pansy",    hasLeaf: true  },
+  { id: "wildflower", name: "Wild",     hasLeaf: false },
+  { id: "bud",        name: "Rosette",  hasLeaf: true  },
+  { id: "clover",     name: "Clover",   hasLeaf: false },
+];
+
+const HANDWRITING_FONTS = [
+  { id: "marker",  name: "Permanent Marker",     label: "Marker"  },
+  { id: "rock",    name: "Rock Salt",             label: "Chalk"   },
+  { id: "caveat",  name: "Caveat",                label: "Casual"  },
+  { id: "kalam",   name: "Kalam",                 label: "Neat"    },
+  { id: "covered", name: "Covered By Your Grace", label: "Dreamy"  },
+  { id: "reenie",  name: "Reenie Beanie",         label: "Scrawl"  },
+];
+
+const LETTER_STYLES = [
+  { id: "newsprint", label: "Newsprint", bg: "#e8e0d0", lines: true,  textColor: "#1a1a1a", accent: P.terracotta  },
+  { id: "yellowcab", label: "Yellow Cab",bg: "#f7c948", lines: false, textColor: "#1a1a1a", accent: P.maroon      },
+  { id: "subway",    label: "Subway",    bg: "#f0ede8", lines: true,  textColor: "#0d3b6e", accent: P.periwinkle  },
+  { id: "brownbag",  label: "Brown Bag", bg: "#c4935a", lines: false, textColor: "#1a0a00", accent: P.maroon      },
+  { id: "petal",     label: "Petal",     bg: "#f7dce8", lines: false, textColor: P.maroon,  accent: P.maroon      },
+  { id: "forest",    label: "Forest",    bg: P.forestGreen, lines: true, textColor: P.iceBlue, accent: P.periwinkle },
+];
+
+const MAX_FLOWERS = 30;
+const MAX_CHARS   = 600;
+
+// ── SVG petal helper (radial ellipses inside an <svg>) ─────────────────────
+const petals = (n, dist, rx, ry, fill, offset = 0, cx = 30, cy = 30) =>
+  Array.from({ length: n }, (_, i) => (
+    <ellipse key={i} cx={cx} cy={cy - dist} rx={rx} ry={ry} fill={fill}
+      transform={`rotate(${(360 / n) * i + offset} ${cx} ${cy})`} />
+  ));
+
+// ── SVG flower illustrations (viewBox 0 0 60 60) ─────────────────────────
+function FlowerHead({ id, sz = 44 }) {
+  const vb = "0 0 60 60";
+  switch (id) {
+
+    case "rose": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(5, 15, 10, 14, "#B03828")}
+        {petals(5,  9,  8, 12, "#D95040", 36)}
+        {petals(5,  4,  6,  9, "#F07060", 18)}
+        <circle cx={30} cy={30} r={5} fill="#7A1010" />
+      </svg>
+    );
+
+    case "tulip": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {/* back centre petal */}
+        <path d="M30,7 C21,5 14,18 14,31 C14,44 21,53 30,53 C39,53 46,44 46,31 C46,18 39,5 30,7Z" fill="#9A2E20" />
+        {/* left petal */}
+        <path d="M30,15 C18,13 8,26 9,40 C10,49 19,55 30,54Z" fill="#E07040" />
+        {/* right petal */}
+        <path d="M30,15 C42,13 52,26 51,40 C50,49 41,55 30,54Z" fill="#C85030" />
+        {/* highlight */}
+        <path d="M29,11 C28,23 28,38 29,51L31,51 C32,38 32,23 31,11Z" fill="#F09870" opacity="0.4" />
+      </svg>
+    );
+
+    case "sunflower": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(13, 18, 5, 13, "#D07E18")}
+        {petals(13, 18, 5, 13, "#F0A030", 13.8)}
+        <circle cx={30} cy={30} r={12} fill="#2A1608" />
+        <circle cx={30} cy={30} r={9}  fill="#4A2E10" />
+        {[0,45,90,135,180,225,270,315].map((a, i) => (
+          <circle key={i}
+            cx={30 + Math.cos(a * Math.PI / 180) * 5.5}
+            cy={30 + Math.sin(a * Math.PI / 180) * 5.5}
+            r={1.3} fill="#1A0800" />
+        ))}
+        <circle cx={30} cy={30} r={2.5} fill="#1A0800" />
+      </svg>
+    );
+
+    case "daisy": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(14, 20, 4, 13, "#D8D0C0")}
+        {petals(14, 20, 4, 13, "#F4EEE4", 360/28)}
+        <circle cx={30} cy={30} r={9}  fill="#F0D830" />
+        <circle cx={30} cy={30} r={6}  fill="#D8BC18" />
+        <circle cx={30} cy={30} r={3}  fill="#B8A010" />
+      </svg>
+    );
+
+    case "blossom": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(5, 14, 12, 16, "#F4D0E0")}
+        {petals(5, 14, 10, 14, "#E8A8C4")}
+        {[0,60,120,180,240,300].map((a, i) => (
+          <circle key={i}
+            cx={30 + Math.cos(a * Math.PI / 180) * 9}
+            cy={30 + Math.sin(a * Math.PI / 180) * 9}
+            r={1.6} fill="#C06080" />
+        ))}
+        <circle cx={30} cy={30} r={5} fill="#F8D060" />
+        <circle cx={30} cy={30} r={3} fill="#E0A838" />
+      </svg>
+    );
+
+    case "poppy": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(2, 15, 14, 17, "#A02818")}
+        {petals(2, 15, 14, 17, "#CF5030", 90)}
+        <circle cx={30} cy={30} r={9}  fill="#140400" />
+        <circle cx={30} cy={30} r={7}  fill="#200808" />
+        {[0,36,72,108,144,180,216,252,288,324].map((a, i) => (
+          <circle key={i}
+            cx={30 + Math.cos(a * Math.PI / 180) * 5}
+            cy={30 + Math.sin(a * Math.PI / 180) * 5}
+            r={0.9} fill="#EEE8E0" />
+        ))}
+      </svg>
+    );
+
+    case "orchid": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {/* dorsal sepal */}
+        <ellipse cx={30} cy={11} rx={7} ry={13} fill="#B878C8" />
+        {/* upper lateral petals */}
+        <ellipse cx={16} cy={22} rx={10} ry={6} fill="#D4A0E0" transform="rotate(-35 16 22)" />
+        <ellipse cx={44} cy={22} rx={10} ry={6} fill="#D4A0E0" transform="rotate(35 44 22)"  />
+        {/* lower lateral sepals */}
+        <ellipse cx={16} cy={38} rx={10} ry={6} fill="#A060B8" transform="rotate(35 16 38)"  />
+        <ellipse cx={44} cy={38} rx={10} ry={6} fill="#A060B8" transform="rotate(-35 44 38)" />
+        {/* labellum / lip */}
+        <path d="M30,30 C20,33 16,44 18,52 C20,58 27,60 30,60 C33,60 40,58 42,52 C44,44 40,33 30,30Z"
+          fill="#F0E080" />
+        <path d="M30,36 C27,41 26,48 27,53 C28,56 30,58 30,58 C30,58 32,56 33,53 C34,48 33,41 30,36Z"
+          fill="#C8A020" opacity="0.55" />
+        <circle cx={30} cy={30} r={5} fill="#8848A8" />
+      </svg>
+    );
+
+    case "hibiscus": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(5, 17, 13, 19, "#B03020")}
+        {petals(5, 17, 11, 17, "#E05030")}
+        {/* stamen column */}
+        <line x1={30} y1={30} x2={30} y2={7} stroke="#F8E050" strokeWidth={3} strokeLinecap="round" />
+        {[0,72,144,216,288].map((a, i) => (
+          <circle key={i}
+            cx={30 + Math.cos(a * Math.PI / 180) * 5}
+            cy={10 + Math.sin(a * Math.PI / 180) * 3}
+            r={2.2} fill="#F0C020" />
+        ))}
+        <circle cx={30} cy={30} r={6} fill="#8A1C10" />
+      </svg>
+    );
+
+    case "lotus": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(8, 18, 7, 19, "#B878B0")}
+        {petals(6, 11, 6, 16, "#DCA8D4", 30)}
+        {petals(4,  5, 5, 11, "#F0D0EC", 15)}
+        <circle cx={30} cy={30} r={7} fill="#F0DC48" />
+        <circle cx={30} cy={30} r={4} fill="#D0B820" />
+      </svg>
+    );
+
+    case "lily": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(6, 16, 7, 19, "#ECA880")}
+        {petals(6, 16, 7, 19, "#E09070", 30)}
+        {/* freckles */}
+        {[0,60,120,180,240,300].flatMap((a, i) =>
+          [8, 13].map((r, j) => (
+            <circle key={`${i}-${j}`}
+              cx={30 + Math.cos((a+12) * Math.PI/180) * r}
+              cy={30 + Math.sin((a+12) * Math.PI/180) * r}
+              r={1.2} fill="#A03818" opacity="0.75" />
+          ))
+        )}
+        {/* stamens */}
+        {[0,60,120,180,240,300].map((a, i) => (
+          <line key={i} x1={30} y1={30}
+            x2={30 + Math.cos(a * Math.PI/180) * 14}
+            y2={30 + Math.sin(a * Math.PI/180) * 14}
+            stroke="#784020" strokeWidth={1.1} opacity="0.8" />
+        ))}
+        {[0,60,120,180,240,300].map((a, i) => (
+          <circle key={`t${i}`}
+            cx={30 + Math.cos(a * Math.PI/180) * 14}
+            cy={30 + Math.sin(a * Math.PI/180) * 14}
+            r={2.2} fill="#F09028" />
+        ))}
+        <circle cx={30} cy={30} r={5} fill="#F0DC48" />
+      </svg>
+    );
+
+    case "pansy": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {/* upper two petals (darker) */}
+        <ellipse cx={20} cy={14} rx={12} ry={14} fill="#5070B0" />
+        <ellipse cx={40} cy={14} rx={12} ry={14} fill="#4868A8" />
+        {/* lower three petals (lighter) */}
+        <ellipse cx={30} cy={44} rx={14} ry={15} fill="#A8C4F4" />
+        <ellipse cx={12} cy={37} rx={12} ry={13} fill="#88AAE8" transform="rotate(-28 12 37)" />
+        <ellipse cx={48} cy={37} rx={12} ry={13} fill="#88AAE8" transform="rotate(28 48 37)"  />
+        {/* face lines */}
+        <line x1={30} y1={30} x2={30} y2={52} stroke="#303878" strokeWidth={1.8} opacity="0.45" />
+        <line x1={21} y1={34} x2={30} y2={30} stroke="#303878" strokeWidth={1.8} opacity="0.45" />
+        <line x1={39} y1={34} x2={30} y2={30} stroke="#303878" strokeWidth={1.8} opacity="0.45" />
+        <circle cx={30} cy={30} r={5.5} fill="#F8E448" />
+        <circle cx={30} cy={30} r={3}   fill="#D8C020" />
+      </svg>
+    );
+
+    case "wildflower": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {/* three small flowers at different positions */}
+        {petals(5, 8, 5, 7, P.lilac,      0,  14, 38)}
+        <circle cx={14} cy={38} r={3.2} fill={P.paleYellow} />
+        {petals(5, 8, 5, 7, P.dustyPink, 36,  30, 16)}
+        <circle cx={30} cy={16} r={3.2} fill={P.amber} />
+        {petals(5, 8, 5, 7, P.periwinkle,18,  46, 38)}
+        <circle cx={46} cy={38} r={3.2} fill={P.paleYellow} />
+      </svg>
+    );
+
+    case "bud": return (
+      /* chrysanthemum / rosette */
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(14, 14,  5, 11, "#A83020")}
+        {petals(12, 9,   4,  9, "#D04828", 15)}
+        {petals(8,  4,   3,  7, "#F07050", 22)}
+        <circle cx={30} cy={30} r={4} fill="#701010" />
+      </svg>
+    );
+
+    case "clover": return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {/* three heart-style leaf-pairs */}
+        {petals(3, 12, 11, 12, "#4A8438", -90)}
+        {petals(3, 12, 10, 11, "#6AAA58", -90 + 60)}
+        {/* tiny white clover flower on top */}
+        {petals(6, 5, 3, 4, "#FFFFFF", 0, 30, 20)}
+        <circle cx={30} cy={20} r={2.5} fill="#F0DC48" />
+      </svg>
+    );
+
+    default: return (
+      <svg width={sz} height={sz} viewBox={vb}>
+        {petals(10, 18, 5, 12, "#F4EEE4")}
+        <circle cx={30} cy={30} r={8} fill="#F0DC48" />
+      </svg>
+    );
+  }
+}
+
+// ── Curved SVG stem + SVG leaf ─────────────────────────────────────────────
+// stemCurve: stored per-flower, range −1.5 → +1.5 for dramatic organic bends
+function StemmedFlower({ flower, size = 1, stemCurve = 0 }) {
+  const headSz = Math.round(42 * size);
+  const stemH  = Math.round(88 * size);
+  const svgW   = Math.round(52 * size);
+  const cx     = svgW / 2;
+  const sw     = Math.max(1.5, 3 * size);
+
+  // Very dramatic S-curve: control points deflect strongly in opposite directions
+  const cp1x = cx + stemCurve * 21 * size;
+  const cp1y = stemH * 0.24;
+  const cp2x = cx - stemCurve * 16 * size;
+  const cp2y = stemH * 0.74;
+
+  // Leaf position along bezier at parameter t = 0.38
+  const t  = 0.38;
+  const lx = Math.pow(1-t,3)*cx   + 3*Math.pow(1-t,2)*t*cp1x + 3*(1-t)*t*t*cp2x + t*t*t*cx;
+  const ly = 3*Math.pow(1-t,2)*t*cp1y + 3*(1-t)*t*t*cp2y + t*t*t*stemH;
+  const leafRot = -14 + stemCurve * 24;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", userSelect: "none", lineHeight: 1 }}>
+      <FlowerHead id={flower.id} sz={headSz} />
+      <svg width={svgW} height={stemH} style={{ display: "block", overflow: "visible" }}>
+        {/* stem */}
+        <path
+          d={`M ${cx} 0 C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cx} ${stemH}`}
+          stroke="#3a8a3a" strokeWidth={sw} fill="none" strokeLinecap="round"
+        />
+        {/* leaf — SVG ellipse, no emoji */}
+        {flower.hasLeaf && (
+          <ellipse
+            cx={lx} cy={ly}
+            rx={Math.round(11 * size)} ry={Math.round(5.5 * size)}
+            fill="#52a852"
+            transform={`rotate(${leafRot} ${lx} ${ly})`}
+          />
+        )}
+      </svg>
+    </div>
+  );
+}
+
+// ── Bouquet paper wrapper ─────────────────────────────────────────────────
+function BouquetPaper({ compact = false }) {
+  const h = compact ? 72 : 110;
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, left: "50%",
+      transform: "translateX(-50%)",
+      width: compact ? "65%" : "52%", minWidth: compact ? 140 : 170,
+      height: h, zIndex: 10, pointerEvents: "none",
+    }}>
+      <div style={{ position:"absolute", bottom:0, left:-10, width:"55%", height:"100%",
+        background: P.lilac, opacity:0.85,
+        clipPath:"polygon(18% 0%,82% 0%,100% 100%,0% 100%)",
+        transform:"rotate(-4deg)", transformOrigin:"50% 100%" }} />
+      <div style={{ position:"absolute", bottom:0, right:-10, width:"55%", height:"100%",
+        background: P.dustyPink, opacity:0.85,
+        clipPath:"polygon(18% 0%,82% 0%,100% 100%,0% 100%)",
+        transform:"rotate(5deg)", transformOrigin:"50% 100%" }} />
+      <div style={{ position:"absolute", bottom:0, left:0, width:"100%", height:"100%",
+        background: P.peach,
+        clipPath:"polygon(10% 0%,90% 0%,100% 100%,0% 100%)",
+        backgroundImage:`radial-gradient(circle, ${P.terracotta}30 1.5px, transparent 1.5px)`,
+        backgroundSize:"10px 10px" }} />
+      {!compact && <>
+        <div style={{ position:"absolute", top:24, left:"10%", width:"80%",
+          height:10, background: P.terracotta, borderRadius:2 }} />
+        <div style={{ position:"absolute", top:18, left:"50%", transform:"translateX(-50%)",
+          width:20, height:20, background: P.maroon, borderRadius:"50%",
+          border:`3px solid ${P.peach}`, boxShadow:`0 0 0 2px ${P.terracotta}` }} />
+      </>}
+    </div>
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function Toast({ message, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2400); return () => clearTimeout(t); }, [onDone]);
+  return (
+    <div style={{
+      position:"fixed", bottom:32, left:"50%", transform:"translateX(-50%)",
+      background: P.forestGreen, color: P.iceBlue,
+      padding:"11px 28px", fontFamily: BODY, fontSize:13, fontWeight:500,
+      borderRadius:100, zIndex:9999,
+      boxShadow:`0 6px 24px ${P.forestGreen}55`, animation:"toastIn 0.25s ease-out",
+    }}>{message}</div>
+  );
+}
+
+// ── Shared UI ─────────────────────────────────────────────────────────────
+const inputStyle = {
+  background:"#fff", border:`1.5px solid ${P.stone}`, color: P.bark,
+  padding:"11px 14px", fontSize:15, fontFamily: BODY, fontWeight:400,
+  outline:"none", boxSizing:"border-box", width:"100%",
+  borderRadius:10, transition:"border-color 0.15s",
+};
+
+function GhostBtn({ onClick, disabled, children, hoverColor, style = {} }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button onClick={onClick} disabled={disabled}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        background:"transparent",
+        border:`1.5px solid ${hov && !disabled ? (hoverColor||P.bark) : P.stone}`,
+        color: hov && !disabled ? (hoverColor||P.bark) : P.driftwood,
+        padding:"10px 22px", fontSize:13, fontFamily: BODY, fontWeight:500,
+        cursor: disabled ? "not-allowed" : "pointer",
+        borderRadius:100, transition:"all 0.15s", opacity: disabled ? 0.4 : 1,
+        ...style,
+      }}>{children}</button>
+  );
+}
+
+function PrimaryBtn({ onClick, disabled, children, bg }) {
+  const col = bg || P.terracotta;
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      background: disabled ? P.stone : col,
+      color: disabled ? "#fff" : "#fff",
+      border:"none", padding:"13px 36px",
+      fontSize:14, fontFamily: BODY, fontWeight:600,
+      cursor: disabled ? "not-allowed" : "pointer",
+      borderRadius:100, transition:"all 0.2s",
+      boxShadow: disabled ? "none" : `0 4px 18px ${col}66`,
+    }}>{children}</button>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+export default function FlowerLetter() {
+  const [step,        setStep]        = useState(1);
+  const [placed,      setPlaced]      = useState([]);
+  const [history,     setHistory]     = useState([]);
+  const [dragging,    setDragging]    = useState(null);
+  const [dragOffset,  setDragOffset]  = useState({ x:0, y:0 });
+  const [letter,      setLetter]      = useState("");
+  const [subject,     setSubject]     = useState("");
+  const [fontSize,    setFontSize]    = useState(22);
+  const [font,        setFont]        = useState(HANDWRITING_FONTS[2]);
+  const [ls,          setLs]          = useState(LETTER_STYLES[0]);
+  const [recipient,   setRecipient]   = useState({ name:"", email:"" });
+  const [sender,      setSender]      = useState("");
+  const [sent,        setSent]        = useState(false);
+  const [toast,       setToast]       = useState(null);
+  const [emailErr,    setEmailErr]    = useState("");
+  const [activeFlower, setActiveFlower] = useState(null);   // hovered/selected flower uid
+  const canvasRef = useRef(null);
+  const uid       = useRef(0);
+
+  useEffect(() => {
+    const el = document.createElement("link");
+    el.rel = "stylesheet"; el.href = FONT_LINK;
+    document.head.appendChild(el);
+  }, []);
+
+  const saveHist = useCallback(cur => setHistory(h => [...h.slice(-19), cur]), []);
+
+  const addFlower = f => {
+    if (placed.length >= MAX_FLOWERS) { setToast("Max flowers reached!"); return; }
+    const r = canvasRef.current?.getBoundingClientRect();
+    if (!r) return;
+    uid.current++;
+    const next = [...placed, {
+      uid: uid.current, ...f,
+      x: 60 + Math.random() * (r.width  - 120),
+      y: 20 + Math.random() * (r.height - 190),
+      rot:       (Math.random() - 0.5) * 22,
+      scale:     0.82 + Math.random() * 0.36,
+      stemCurve: (Math.random() - 0.5) * 3.0,   // ← big range = very organic
+    }];
+    saveHist(placed); setPlaced(next);
+  };
+
+  const removeFlower = u => { saveHist(placed); setPlaced(p => p.filter(f => f.uid !== u)); };
+  const undo  = () => { if (!history.length) return; setPlaced(history[history.length-1]); setHistory(h => h.slice(0,-1)); };
+  const clear = () => { if (!placed.length) return; saveHist(placed); setPlaced([]); };
+
+  const startDrag = useCallback((e, u) => {
+    e.preventDefault();
+    setActiveFlower(u);
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const f  = placed.find(p => p.uid === u);
+    if (!f || !canvasRef.current) return;
+    const r = canvasRef.current.getBoundingClientRect();
+    setDragging(u); setDragOffset({ x: cx-r.left-f.x, y: cy-r.top-f.y });
+  }, [placed]);
+
+  const onMove = useCallback(e => {
+    if (!dragging || !canvasRef.current) return;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    const r  = canvasRef.current.getBoundingClientRect();
+    setPlaced(p => p.map(f => f.uid === dragging
+      ? { ...f,
+          x: Math.max(20, Math.min(r.width-20,  cx-r.left-dragOffset.x)),
+          y: Math.max(10, Math.min(r.height-10, cy-r.top -dragOffset.y)) }
+      : f));
+  }, [dragging, dragOffset]);
+
+  const endDrag = useCallback(() => setDragging(null), []);
+
+  const validateEmail = v => {
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    setEmailErr(v && !ok ? "Doesn't look like a valid email" : "");
+    return ok;
+  };
+
+  const copyLetter = () => {
+    const txt = `${subject ? subject+"\n\n" : ""}${letter}\n\n— ${sender}`;
+    navigator.clipboard.writeText(txt).then(() => setToast("Copied to clipboard ✓"));
+  };
+
+  const reset = () => {
+    setStep(1); setPlaced([]); setHistory([]); setLetter(""); setSubject("");
+    setFontSize(22); setFont(HANDWRITING_FONTS[2]); setLs(LETTER_STYLES[0]);
+    setRecipient({name:"",email:""}); setSender(""); setSent(false); setEmailErr("");
+  };
+
+  const linesBg = ls.lines
+    ? `repeating-linear-gradient(transparent, transparent 31px, rgba(0,0,0,0.06) 32px)`
+    : "none";
+  const canSend2 = letter.trim().length > 0;
+  const canSend3 = recipient.name && recipient.email && !emailErr && sender;
+  const charsLeft = MAX_CHARS - letter.length;
+
+  // ── Step pill UI ─────────────────────────────────────────────────────────
+  const StepPills = () => (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", marginBottom:36, flexWrap:"wrap", gap:4 }}>
+      {[["01","Arrange"],["02","Write"],["03","Send"]].map(([num, label], i) => {
+        const s = i+1, active = step===s, done = step>s;
+        return (
+          <div key={s} style={{ display:"flex", alignItems:"center" }}>
+            <div onClick={() => done && setStep(s)} role="button" tabIndex={done?0:-1}
+              onKeyDown={e => (e.key==="Enter"||e.key===" ") && done && setStep(s)}
+              style={{
+                display:"flex", alignItems:"center", gap:7, padding:"8px 18px",
+                background: active ? P.amber : done ? P.sage : "transparent",
+                border: `1.5px solid ${active ? P.amber : done ? P.sage : P.stone}`,
+                cursor: done?"pointer":"default", borderRadius:100, transition:"all 0.18s",
+                outline:"none",
+              }}>
+              <span style={{ fontSize:11, fontFamily:BODY, fontWeight:700,
+                color: active||done ? P.bark : P.pebble }}>
+                {done ? "✓" : num}
+              </span>
+              <span style={{ fontSize:13, fontFamily:BODY, fontWeight: active?600:400,
+                color: active ? P.bark : done ? P.forestGreen : P.pebble }}>
+                {label}
+              </span>
+            </div>
+            {i < 2 && <div style={{ width:28, height:1.5, background: step>s ? P.sage : P.stone }} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background: P.cream, fontFamily: BODY, position:"relative", overflowX:"hidden" }}>
+
+      {/* Side accents */}
+      <div style={{ position:"fixed", left:0, top:0, bottom:0, width:5, background: P.terracotta, zIndex:3 }} />
+      <div style={{ position:"fixed", right:0, top:0, bottom:0, width:5, background: P.periwinkle, zIndex:3 }} />
+
+      {/* ── HEADER (forest green block) ──────────────────────────────────── */}
+      <div style={{ background: P.forestGreen, padding:"40px 32px 36px", textAlign:"center", position:"relative" }}>
+        <div style={{
+          display:"inline-block", background: P.chartreuse, padding:"4px 20px",
+          transform:"rotate(-1deg)", marginBottom:16, borderRadius:100,
+        }}>
+          <span style={{ fontSize:11, letterSpacing:3, color: P.forestGreen, fontFamily:BODY, fontWeight:600 }}>
+            Est. 1994 · New York City
+          </span>
+        </div>
+        <h1 style={{
+          fontFamily: DISPLAY, fontWeight:800,
+          fontSize:"clamp(52px,10vw,90px)", color:"#fff", margin:0,
+          letterSpacing:-1, lineHeight:0.93,
+        }}>
+          Send in<br/>
+          <span style={{ color: P.amber }}>Bloom</span>
+        </h1>
+        <p style={{ color: P.iceBlue, fontSize:12, letterSpacing:3, marginTop:14, fontFamily:BODY, fontWeight:300 }}>
+          Flowers · Letters · Straight from the Heart
+        </p>
+      </div>
+
+      <div style={{ maxWidth:820, margin:"0 auto", padding:"32px 28px" }}>
+
+        {!sent && <StepPills />}
+
+        {/* ══ STEP 1 — ARRANGE ══════════════════════════════════════════════ */}
+        {step === 1 && (
+          <div>
+            <h2 style={{ fontFamily:DISPLAY, fontWeight:700, color:P.forestGreen, fontSize:30, margin:"0 0 6px", letterSpacing:-0.5 }}>
+              Arrange your bouquet
+            </h2>
+            <p style={{ color:P.driftwood, fontSize:12, margin:"0 0 16px" }}>
+              Click to add · drag to rearrange · hover (or tap) to delete
+            </p>
+
+            {/* Flower picker — chartreuse background */}
+            <div style={{
+              display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(66px,1fr))", gap:6,
+              background: P.chartreuse, padding:14, marginBottom:14, borderRadius:16,
+            }}>
+              {FLOWERS.map(f => (
+                <button key={f.id} onClick={() => addFlower(f)}
+                  title={`Add ${f.name}`} aria-label={`Add ${f.name}`}
+                  disabled={placed.length >= MAX_FLOWERS}
+                  style={{
+                    background:"rgba(255,255,255,0.45)", border:"1.5px solid transparent",
+                    padding:"8px 4px 6px", borderRadius:12,
+                    cursor: placed.length>=MAX_FLOWERS ? "not-allowed" : "pointer",
+                    display:"flex", flexDirection:"column", alignItems:"center", gap:4,
+                    transition:"all 0.12s", opacity: placed.length>=MAX_FLOWERS ? 0.3 : 1,
+                  }}
+                  onMouseEnter={e => { if (placed.length<MAX_FLOWERS) { e.currentTarget.style.background="rgba(255,255,255,0.8)"; e.currentTarget.style.borderColor=P.forestGreen; }}}
+                  onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.45)"; e.currentTarget.style.borderColor="transparent"; }}
+                >
+                  <FlowerHead id={f.id} sz={40} />
+                  <span style={{ fontSize:9, color:P.forestGreen, fontFamily:BODY, fontWeight:600 }}>{f.name}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Canvas — peach background */}
+            <div ref={canvasRef}
+              onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag}
+              onTouchMove={onMove} onTouchEnd={endDrag}
+              style={{
+                position:"relative", width:"100%", height:390,
+                background: P.peach,
+                border:`1.5px solid ${P.stone}`, borderRadius:16, overflow:"hidden",
+                cursor: dragging ? "grabbing" : "default",
+              }}>
+
+              {placed.length === 0 && (
+                <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column",
+                  alignItems:"center", justifyContent:"center", gap:10, pointerEvents:"none" }}>
+                  <FlowerHead id="daisy" sz={52} />
+                  <span style={{ color:P.caramel, fontFamily:BODY, fontSize:12, letterSpacing:1, marginTop:4 }}>
+                    your bouquet will appear here
+                  </span>
+                </div>
+              )}
+
+              {placed.map(f => {
+                const isActive  = activeFlower === f.uid;
+                const isDragged = dragging      === f.uid;
+                return (
+                  <div key={f.uid}
+                    onMouseDown={e => startDrag(e, f.uid)}
+                    onTouchStart={e => { setActiveFlower(f.uid); startDrag(e, f.uid); }}
+                    onMouseEnter={() => { if (!dragging) setActiveFlower(f.uid); }}
+                    onMouseLeave={() => { if (!dragging) setActiveFlower(null);  }}
+                    style={{
+                      position:"absolute", left:f.x, top:f.y,
+                      transform:`translate(-50%,0) rotate(${f.rot}deg) scale(${f.scale})`,
+                      transformOrigin:"50% 100%",
+                      cursor: isDragged ? "grabbing" : "grab",
+                      zIndex: isDragged ? 100 : isActive ? 50 : 1,
+                      filter: isDragged
+                        ? `drop-shadow(0 0 10px ${P.terracotta}99)`
+                        : isActive
+                          ? `drop-shadow(0 0 6px ${P.amber}cc)`
+                          : "none",
+                      transition: isDragged ? "none" : "filter 0.15s",
+                    }}>
+
+                    {/* ── Delete button — visible on hover / tap ── */}
+                    {isActive && !isDragged && (
+                      <button
+                        onMouseDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); removeFlower(f.uid); setActiveFlower(null); }}
+                        aria-label={`Remove ${f.name}`}
+                        title={`Remove ${f.name}`}
+                        style={{
+                          position:"absolute", top:-10, right:-8,
+                          width:26, height:26,
+                          background: P.terracotta, color:"#fff",
+                          border:"2.5px solid #fff", borderRadius:"50%",
+                          fontSize:15, fontWeight:800, lineHeight:1, padding:0,
+                          cursor:"pointer", zIndex:200,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          boxShadow:"0 2px 8px rgba(0,0,0,0.35)",
+                          userSelect:"none",
+                          fontFamily:"sans-serif",
+                        }}
+                      >×</button>
+                    )}
+
+                    <StemmedFlower flower={f} size={1} stemCurve={f.stemCurve} />
+                  </div>
+                );
+              })}
+
+              {/* Bouquet paper wrap */}
+              <BouquetPaper />
+            </div>
+
+            {/* Controls */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, flexWrap:"wrap", gap:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ color:P.driftwood, fontSize:12 }}>{placed.length}/{MAX_FLOWERS} flowers</span>
+                <GhostBtn onClick={undo} disabled={!history.length} hoverColor={P.periwinkle}>↩ Undo</GhostBtn>
+                <GhostBtn onClick={clear} disabled={!placed.length} hoverColor={P.coral}>✕ Clear</GhostBtn>
+              </div>
+              <PrimaryBtn onClick={() => setStep(2)} disabled={placed.length===0} bg={P.terracotta}>
+                Write the letter →
+              </PrimaryBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ══ STEP 2 — WRITE ════════════════════════════════════════════════ */}
+        {step === 2 && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, flexWrap:"wrap", gap:8 }}>
+              <h2 style={{ fontFamily:DISPLAY, fontWeight:700, color:P.forestGreen, fontSize:30, margin:0, letterSpacing:-0.5 }}>
+                Write your letter
+              </h2>
+              <GhostBtn onClick={reset} hoverColor={P.coral} style={{ fontSize:12, marginTop:4 }}>↺ Start over</GhostBtn>
+            </div>
+            <p style={{ color:P.driftwood, fontSize:12, margin:"0 0 20px" }}>pick a vibe · write what's in your heart</p>
+
+            {/* Controls panel — periwinkle background */}
+            <div style={{ background: P.periwinkle, padding:"20px 22px", marginBottom:20, borderRadius:16 }}>
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:11, color:"#fff", letterSpacing:1, marginBottom:10, fontFamily:BODY, fontWeight:700 }}>Handwriting style</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(78px,1fr))", gap:6 }}>
+                  {HANDWRITING_FONTS.map(f => (
+                    <button key={f.id} onClick={() => setFont(f)} aria-pressed={font.id===f.id}
+                      style={{
+                        background: font.id===f.id ? P.forestGreen : "rgba(255,255,255,0.5)",
+                        border:`1.5px solid ${font.id===f.id ? P.forestGreen : "transparent"}`,
+                        padding:"10px 6px", cursor:"pointer", borderRadius:12, transition:"all 0.15s",
+                        display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+                      }}
+                      onMouseEnter={e => { if (font.id!==f.id) e.currentTarget.style.background="rgba(255,255,255,0.75)"; }}
+                      onMouseLeave={e => { if (font.id!==f.id) e.currentTarget.style.background="rgba(255,255,255,0.5)"; }}
+                    >
+                      <span style={{ fontFamily:`'${f.name}', cursive`, fontSize:22, color: font.id===f.id ? "#fff" : P.bark, lineHeight:1 }}>Aa</span>
+                      <span style={{ fontSize:9, fontFamily:BODY, color: font.id===f.id ? "#fff" : P.forestGreen, fontWeight:600 }}>{f.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:11, color:"#fff", letterSpacing:1, marginBottom:10, fontFamily:BODY, fontWeight:700 }}>Paper style</div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(88px,1fr))", gap:6 }}>
+                  {LETTER_STYLES.map(s => (
+                    <button key={s.id} onClick={() => setLs(s)} aria-pressed={ls.id===s.id}
+                      style={{
+                        height:60, border:`2.5px solid ${ls.id===s.id ? P.amber : "transparent"}`,
+                        background:s.bg, cursor:"pointer", borderRadius:12, transition:"border-color 0.15s",
+                        display:"flex", flexDirection:"column", justifyContent:"flex-end",
+                        padding:"4px 8px", position:"relative", overflow:"hidden",
+                      }}
+                      onMouseEnter={e => { if (ls.id!==s.id) e.currentTarget.style.borderColor="rgba(255,255,255,0.7)"; }}
+                      onMouseLeave={e => { if (ls.id!==s.id) e.currentTarget.style.borderColor="transparent"; }}
+                    >
+                      {s.lines && <div style={{ position:"absolute", inset:0,
+                        backgroundImage:`repeating-linear-gradient(transparent,transparent 10px,rgba(0,0,0,0.07) 11px)` }} />}
+                      <span style={{ fontSize:9, fontFamily:BODY, fontWeight:700, color:s.textColor, position:"relative", zIndex:1 }}>{s.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize:11, color:"#fff", letterSpacing:1, marginBottom:8, fontFamily:BODY, fontWeight:700 }}>
+                  Text size — {fontSize}px
+                </div>
+                <input type="range" min={14} max={34} step={2} value={fontSize}
+                  onChange={e => setFontSize(Number(e.target.value))}
+                  style={{ width:"100%", accentColor: P.amber, cursor:"pointer" }} />
+              </div>
+            </div>
+
+            {/* Subject */}
+            <input value={subject} onChange={e => setSubject(e.target.value)}
+              placeholder="Subject (optional)" maxLength={80}
+              style={{ ...inputStyle, marginBottom:6, fontFamily:`'${font.name}',cursive`, fontSize:15 }}
+              onFocus={e => e.target.style.borderColor = P.periwinkle}
+              onBlur={e => e.target.style.borderColor = P.stone} />
+
+            {/* Letter */}
+            <div style={{
+              background:ls.bg, backgroundImage:linesBg, padding:"28px 32px", minHeight:280,
+              boxShadow:`4px 4px 0 ${P.stone}50`, borderRadius:16,
+              border:`1.5px solid ${ls.accent}`, position:"relative",
+            }}>
+              <div style={{ position:"absolute", top:14, right:16, width:36, height:44,
+                border:`1.5px solid ${ls.accent}`, opacity:0.18, borderRadius:4,
+                display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <FlowerHead id="blossom" sz={24} />
+              </div>
+              <textarea value={letter}
+                onChange={e => setLetter(e.target.value.slice(0, MAX_CHARS))}
+                placeholder="Dear..."
+                style={{
+                  width:"100%", minHeight:230, background:"transparent",
+                  border:"none", outline:"none", resize:"vertical",
+                  fontFamily:`'${font.name}',cursive`,
+                  fontSize, color:ls.textColor, lineHeight:2,
+                  boxSizing:"border-box", caretColor:ls.accent,
+                }} />
+            </div>
+            <div style={{ textAlign:"right", fontFamily:BODY, fontSize:11,
+              color: charsLeft<60 ? P.coral : P.pebble, marginTop:4 }}>
+              {charsLeft} characters left
+            </div>
+
+            <div style={{ display:"flex", gap:10, justifyContent:"space-between", marginTop:16, flexWrap:"wrap" }}>
+              <GhostBtn onClick={() => setStep(1)}>← Back</GhostBtn>
+              <PrimaryBtn onClick={() => setStep(3)} disabled={!canSend2} bg={P.forestGreen}>
+                Address the envelope →
+              </PrimaryBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ══ STEP 3 — SEND ═════════════════════════════════════════════════ */}
+        {step === 3 && !sent && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6, flexWrap:"wrap", gap:8 }}>
+              <h2 style={{ fontFamily:DISPLAY, fontWeight:700, color:P.forestGreen, fontSize:30, margin:0, letterSpacing:-0.5 }}>
+                Who's it for?
+              </h2>
+              <GhostBtn onClick={reset} hoverColor={P.coral} style={{ fontSize:12, marginTop:4 }}>↺ Start over</GhostBtn>
+            </div>
+            <p style={{ color:P.driftwood, fontSize:12, margin:"0 0 24px" }}>fill in the details · hit send</p>
+
+            {/* Summary — sage background */}
+            <div style={{ background: P.sage, padding:20, marginBottom:20, borderRadius:16,
+              display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
+              <div style={{ width:82, height:112, background:"rgba(255,255,255,0.35)",
+                border:`1px solid rgba(255,255,255,0.6)`,
+                position:"relative", overflow:"hidden", flexShrink:0, borderRadius:12,
+                display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+                {placed.slice(0,7).map((f,i) => (
+                  <div key={i} style={{
+                    position:"absolute", bottom:38,
+                    left:"50%",
+                    transform:`translateX(${(i - Math.min(placed.length,7)/2)*10}px) rotate(${(i-3)*7}deg) scale(0.45)`,
+                    transformOrigin:"50% 100%",
+                  }}>
+                    <StemmedFlower flower={f} size={0.85} stemCurve={f.stemCurve||0} />
+                  </div>
+                ))}
+                <BouquetPaper compact />
+              </div>
+              <div style={{ flex:1, minWidth:180 }}>
+                <div style={{ fontSize:11, color:"#fff", fontFamily:BODY, fontWeight:700, marginBottom:4 }}>
+                  {placed.length} flower{placed.length!==1?"s":""} · {font.label} · {ls.label}
+                </div>
+                {subject && <div style={{ fontFamily:`'${font.name}',cursive`, fontSize:13, color:"#fff", marginBottom:4, fontStyle:"italic" }}>{subject}</div>}
+                <div style={{ fontFamily:`'${font.name}',cursive`, fontSize:16, color:ls.textColor,
+                  background:ls.bg, padding:"8px 14px", border:`1px solid ${ls.accent}`,
+                  maxHeight:54, overflow:"hidden", borderRadius:8 }}>
+                  {letter.slice(0,100)}{letter.length>100?"…":""}
+                </div>
+              </div>
+            </div>
+
+            {/* Form — dusty pink background */}
+            <div style={{ background: P.dustyPink, padding:24, borderRadius:16 }}>
+              <div style={{ marginBottom:18 }}>
+                <label style={{ fontSize:11, color: P.maroon, fontFamily:BODY, fontWeight:700, letterSpacing:0.5, display:"block", marginBottom:8 }}>From</label>
+                <input value={sender} onChange={e => setSender(e.target.value)}
+                  placeholder="Your name" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = P.maroon}
+                  onBlur={e => e.target.style.borderColor = P.stone} />
+              </div>
+              <label style={{ fontSize:11, color: P.maroon, fontFamily:BODY, fontWeight:700, letterSpacing:0.5, display:"block", marginBottom:8 }}>To</label>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <input value={recipient.name} onChange={e => setRecipient(r => ({...r, name:e.target.value}))}
+                  placeholder="Their name" style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = P.maroon}
+                  onBlur={e => e.target.style.borderColor = P.stone} />
+                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  <input value={recipient.email}
+                    onChange={e => { setRecipient(r => ({...r, email:e.target.value})); validateEmail(e.target.value); }}
+                    onBlur={e => validateEmail(e.target.value)}
+                    placeholder="their@email.com" type="email"
+                    style={{ ...inputStyle, borderColor: emailErr ? P.coral : P.stone }}
+                    onFocus={e => { if (!emailErr) e.target.style.borderColor = P.maroon; }} />
+                  {emailErr && <span style={{ fontFamily:BODY, fontSize:11, color: P.maroon }}>{emailErr}</span>}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display:"flex", gap:10, justifyContent:"space-between", marginTop:16, flexWrap:"wrap" }}>
+              <GhostBtn onClick={() => setStep(2)}>← Back</GhostBtn>
+              <PrimaryBtn onClick={() => { if (canSend3) setSent(true); }} disabled={!canSend3} bg={P.terracotta}>
+                🕊 Send it →
+              </PrimaryBtn>
+            </div>
+          </div>
+        )}
+
+        {/* ══ SENT ══════════════════════════════════════════════════════════ */}
+        {sent && (
+          <div style={{ textAlign:"center", padding:"48px 0", animation:"fadeUp 0.5s ease-out" }}>
+            <div style={{ display:"inline-block", background: P.sage, padding:"4px 22px",
+              transform:"rotate(-1.5deg)", marginBottom:20, borderRadius:100 }}>
+              <span style={{ fontSize:11, letterSpacing:4, color:"#fff", fontFamily:BODY, fontWeight:600 }}>Delivered ✓</span>
+            </div>
+            <h2 style={{ fontFamily:DISPLAY, fontWeight:800,
+              fontSize:"clamp(40px,8vw,72px)", color: P.forestGreen, margin:"0 0 10px", letterSpacing:-1 }}>
+              It's on its way
+            </h2>
+            <p style={{ color:P.driftwood, fontFamily:BODY, fontSize:13, letterSpacing:1, marginBottom:36 }}>
+              {recipient.name} will receive your letter
+            </p>
+
+            {/* Wrapped bouquet */}
+            <div style={{ display:"inline-block", position:"relative",
+              background: P.peach, border:`1.5px solid ${P.stone}`,
+              padding:"18px 36px 0", marginBottom:32, borderRadius:16, minWidth:190 }}>
+              <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"center", gap:2, paddingBottom:85 }}>
+                {placed.slice(0,8).map((f,i) => (
+                  <div key={i} style={{
+                    transform:`rotate(${(i - Math.min(placed.length,8)/2)*6}deg) scale(0.8)`,
+                    transformOrigin:"50% 100%",
+                  }}>
+                    <StemmedFlower flower={f} size={0.9} stemCurve={f.stemCurve||0} />
+                  </div>
+                ))}
+              </div>
+              <BouquetPaper />
+            </div>
+
+            {subject && <div style={{ fontFamily:`'${font.name}',cursive`, fontSize:14, color:ls.accent, maxWidth:460, margin:"0 auto 8px" }}>{subject}</div>}
+            <div style={{ fontFamily:`'${font.name}',cursive`, fontSize:20, color:ls.textColor,
+              maxWidth:460, margin:"0 auto 16px",
+              background:ls.bg, padding:"22px 30px", border:`1.5px solid ${ls.accent}`,
+              boxShadow:`4px 4px 0 ${P.stone}55`, textAlign:"left", borderRadius:16 }}>
+              "{letter.slice(0,110)}{letter.length>110?"…":""}"
+            </div>
+            <p style={{ color:P.driftwood, fontFamily:BODY, fontSize:12, letterSpacing:1, marginBottom:28 }}>
+              — from {sender} with love —
+            </p>
+            <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+              <GhostBtn onClick={copyLetter} hoverColor={P.periwinkle}>📋 Copy letter</GhostBtn>
+              <PrimaryBtn onClick={reset} bg={P.terracotta}>Send another</PrimaryBtn>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+
+      <style>{`
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes toastIn { from{opacity:0;transform:translateX(-50%) translateY(10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+        * { box-sizing:border-box; }
+        textarea::placeholder { opacity:0.28; }
+        input::placeholder { color:${P.pebble} !important; }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-thumb { background:${P.stone}; border-radius:2px; }
+        input[type="range"] { height:4px; }
+      `}</style>
+    </div>
+  );
+}
