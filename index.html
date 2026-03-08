@@ -1,6 +1,20 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Send in Bloom</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>* { margin:0; padding:0; box-sizing:border-box; } body { background:#f5f0eb; }</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useCallback, useEffect } = React;
 
-// ── API config: when deployed to Vercel, use "" (same origin) ──
+// ── API config: when deployed to Vercel, use "" (same origin). For local dev with vercel dev, use "" ──
 const API_BASE = "";
 
 // ── Fonts ──────────────────────────────────────────────────────────────────
@@ -427,7 +441,7 @@ function PrimaryBtn({ onClick, disabled, children, bg }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────
-export default function FlowerLetter() {
+function FlowerLetter() {
   const [step,        setStep]        = useState(1);
   const [placed,      setPlaced]      = useState([]);
   const [history,     setHistory]     = useState([]);
@@ -448,7 +462,7 @@ export default function FlowerLetter() {
   const [activeFlower, setActiveFlower] = useState(null);   // hovered/selected flower uid
   const canvasRef = useRef(null);
   const uid       = useRef(0);
-  const touchStateRef = useRef(null);
+  const touchStateRef = useRef(null);  // { flowerUid, lastX, lastRot, lastDist, lastScale, lastCenterX, lastCenterY, lastFlowerX, lastFlowerY }
 
   useEffect(() => {
     const el = document.createElement("link");
@@ -1069,3 +1083,9 @@ export default function FlowerLetter() {
     </div>
   );
 }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<FlowerLetter />);
+  </script>
+</body>
+</html>

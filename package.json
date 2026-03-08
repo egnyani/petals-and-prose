@@ -1,0 +1,27 @@
+{
+  "name": "petals-and-prose",
+  "version": "1.0.0",
+  "description": "A web app for building custom flower bouquets and sending handwritten letters — built with React.",
+  "main": "flower-letter.jsx",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egnyani/petals-and-prose.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/egnyani/petals-and-prose/issues"
+  },
+  "homepage": "https://github.com/egnyani/petals-and-prose#readme",
+  "dependencies": {
+    "resend": "^6.9.3"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

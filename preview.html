@@ -13,6 +13,10 @@
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useRef, useCallback, useEffect } = React;
+
+// ── API config: when deployed to Vercel, use "" (same origin). For local dev with vercel dev, use "" ──
+const API_BASE = "";
+
 // ── Fonts ──────────────────────────────────────────────────────────────────
 const FONT_LINK =
   "https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@300;400;500;600&family=Permanent+Marker&family=Rock+Salt&family=Caveat:wght@600;700&family=Reenie+Beanie&family=Kalam:wght@400;700&family=Covered+By+Your+Grace&display=swap";
@@ -306,22 +310,22 @@ function FlowerHead({ id, sz = 44 }) {
   }
 }
 
-// ── Curved SVG stem + SVG leaf ─────────────────────────────────────────────
-// stemCurve: stored per-flower, range −1.5 → +1.5 for dramatic organic bends
-function StemmedFlower({ flower, size = 1, stemCurve = 0 }) {
-  const headSz = Math.round(42 * size);
-  const stemH  = Math.round(88 * size);
-  const svgW   = Math.round(52 * size);
+// ── Bouquet-style stem: shorter, curves toward bouquet center ───────────────
+// stemCurve: organic bend; stemBend: pulls stem toward bouquet center
+function StemmedFlower({ flower, size = 1, stemCurve = 0, stemBend = 0 }) {
+  const headSz = Math.round(48 * size);   // fuller flower heads for bouquet
+  const stemH  = Math.round(88 * size);   // longer stems
+  const svgW   = Math.round(56 * size);
   const cx     = svgW / 2;
-  const sw     = Math.max(1.5, 3 * size);
+  const sw     = Math.max(2, 3.5 * size);
 
-  // Very dramatic S-curve: control points deflect strongly in opposite directions
-  const cp1x = cx + stemCurve * 21 * size;
-  const cp1y = stemH * 0.24;
-  const cp2x = cx - stemCurve * 16 * size;
-  const cp2y = stemH * 0.74;
+  // Curve toward bouquet center + organic wobble
+  const bend = stemBend * 18 * size;
+  const cp1x = cx + stemCurve * 12 * size + bend * 0.4;
+  const cp1y = stemH * 0.3;
+  const cp2x = cx - stemCurve * 10 * size + bend * 0.8;
+  const cp2y = stemH * 0.75;
 
-  // Leaf position along bezier at parameter t = 0.38
   const t  = 0.38;
   const lx = Math.pow(1-t,3)*cx   + 3*Math.pow(1-t,2)*t*cp1x + 3*(1-t)*t*t*cp2x + t*t*t*cx;
   const ly = 3*Math.pow(1-t,2)*t*cp1y + 3*(1-t)*t*t*cp2y + t*t*t*stemH;
@@ -331,17 +335,15 @@ function StemmedFlower({ flower, size = 1, stemCurve = 0 }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", userSelect: "none", lineHeight: 1 }}>
       <FlowerHead id={flower.id} sz={headSz} />
       <svg width={svgW} height={stemH} style={{ display: "block", overflow: "visible" }}>
-        {/* stem */}
         <path
           d={`M ${cx} 0 C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${cx} ${stemH}`}
-          stroke="#3a8a3a" strokeWidth={sw} fill="none" strokeLinecap="round"
+          stroke="#2d6b2d" strokeWidth={sw} fill="none" strokeLinecap="round"
         />
-        {/* leaf — SVG ellipse, no emoji */}
         {flower.hasLeaf && (
           <ellipse
             cx={lx} cy={ly}
-            rx={Math.round(11 * size)} ry={Math.round(5.5 * size)}
-            fill="#52a852"
+            rx={Math.round(10 * size)} ry={Math.round(5 * size)}
+            fill="#3d8b3d"
             transform={`rotate(${leafRot} ${lx} ${ly})`}
           />
         )}
@@ -453,11 +455,14 @@ function FlowerLetter() {
   const [recipient,   setRecipient]   = useState({ name:"", email:"" });
   const [sender,      setSender]      = useState("");
   const [sent,        setSent]        = useState(false);
+  const [sending,     setSending]     = useState(false);
+  const [sendError,   setSendError]   = useState(null);
   const [toast,       setToast]       = useState(null);
   const [emailErr,    setEmailErr]    = useState("");
   const [activeFlower, setActiveFlower] = useState(null);   // hovered/selected flower uid
   const canvasRef = useRef(null);
   const uid       = useRef(0);
+  const touchStateRef = useRef(null);  // { flowerUid, lastX, lastRot, lastDist, lastScale, lastCenterX, lastCenterY, lastFlowerX, lastFlowerY }
 
   useEffect(() => {
     const el = document.createElement("link");
@@ -472,13 +477,22 @@ function FlowerLetter() {
     const r = canvasRef.current?.getBoundingClientRect();
     if (!r) return;
     uid.current++;
+    // Bouquet center: stems converge at bottom center
+    const centerX = r.width / 2;
+    const centerY = r.height - 75;
+    // Place flowers in a dome arc above the bouquet center
+    const angle = (placed.length / Math.max(1, placed.length + 1)) * 2.2 - 1.1 + (Math.random() - 0.5) * 0.8;
+    const radius = 45 + placed.length * 4 + Math.random() * 25;
+    const x = centerX + Math.cos(angle) * radius;
+    const y = centerY - 90 - Math.abs(angle) * 35 - Math.random() * 30;
     const next = [...placed, {
       uid: uid.current, ...f,
-      x: 60 + Math.random() * (r.width  - 120),
-      y: 20 + Math.random() * (r.height - 190),
-      rot:       (Math.random() - 0.5) * 22,
-      scale:     0.82 + Math.random() * 0.36,
-      stemCurve: (Math.random() - 0.5) * 3.0,   // ← big range = very organic
+      x: Math.max(40, Math.min(r.width - 40, x)),
+      y: Math.max(25, Math.min(r.height - 130, y)),
+      rot:       (Math.random() - 0.5) * 18,
+      scale:     0.88 + Math.random() * 0.24,
+      stemCurve: (Math.random() - 0.5) * 2.0,
+      stemBend:  (centerX - x) / (r.width * 0.4),  // bend stem toward bouquet center
     }];
     saveHist(placed); setPlaced(next);
   };
@@ -487,9 +501,14 @@ function FlowerLetter() {
   const undo  = () => { if (!history.length) return; setPlaced(history[history.length-1]); setHistory(h => h.slice(0,-1)); };
   const clear = () => { if (!placed.length) return; saveHist(placed); setPlaced([]); };
 
+  const MIN_SCALE = 0.5, MAX_SCALE = 1.6, SCALE_STEP = 0.08;
+  const adjustFlowerSize = (uid, delta) => {
+    saveHist(placed);
+    setPlaced(p => p.map(f => f.uid === uid ? { ...f, scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, (f.scale ?? 1) + delta)) } : f));
+  };
+
   const startDrag = useCallback((e, u) => {
     e.preventDefault();
-    setActiveFlower(u);
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const f  = placed.find(p => p.uid === u);
@@ -503,14 +522,74 @@ function FlowerLetter() {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const r  = canvasRef.current.getBoundingClientRect();
+    const centerX = r.width / 2;
+    const newX = Math.max(20, Math.min(r.width-20,  cx-r.left-dragOffset.x));
+    const newY = Math.max(10, Math.min(r.height-10, cy-r.top -dragOffset.y));
     setPlaced(p => p.map(f => f.uid === dragging
       ? { ...f,
-          x: Math.max(20, Math.min(r.width-20,  cx-r.left-dragOffset.x)),
-          y: Math.max(10, Math.min(r.height-10, cy-r.top -dragOffset.y)) }
+          x: newX, y: newY,
+          stemBend: (centerX - newX) / (r.width * 0.4) }
       : f));
   }, [dragging, dragOffset]);
 
   const endDrag = useCallback(() => setDragging(null), []);
+
+  const dist = (a, b) => Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+  const centerInCanvas = (t0, t1, r) => ({
+    x: ((t0.clientX + t1.clientX) / 2) - r.left,
+    y: ((t0.clientY + t1.clientY) / 2) - r.top,
+  });
+
+  const handleTouchStart = useCallback((e, flowerUid) => {
+    if (!e.touches?.length || !canvasRef.current) return;
+    const f = placed.find(p => p.uid === flowerUid);
+    if (!f) return;
+    if (e.touches.length === 1) {
+      touchStateRef.current = null;
+      e.preventDefault();
+      startDrag(e, flowerUid);  // single finger = move (same as mouse drag)
+    } else if (e.touches.length >= 2) {
+      e.preventDefault();
+      touchStateRef.current = null;
+      const r = canvasRef.current.getBoundingClientRect();
+      const centerX = r.width / 2;
+      const d = dist(e.touches[0], e.touches[1]);
+      const c = centerInCanvas(e.touches[0], e.touches[1], r);
+      touchStateRef.current = {
+        flowerUid, mode: "pinch",
+        lastDist: d, lastScale: f.scale ?? 1,
+        lastCenterX: c.x, lastCenterY: c.y,
+        lastFlowerX: f.x, lastFlowerY: f.y,
+      };
+    }
+  }, [placed]);
+
+  const handleTouchMove = useCallback((e) => {
+    const ts = touchStateRef.current;
+    if (!ts || !e.touches?.length || !canvasRef.current) return;
+    e.preventDefault();
+    const r = canvasRef.current.getBoundingClientRect();
+    const centerX = r.width / 2;
+    if (e.touches.length >= 2 && ts.mode === "pinch") {
+      const d = dist(e.touches[0], e.touches[1]);
+      const c = centerInCanvas(e.touches[0], e.touches[1], r);
+      const scaleFactor = d / ts.lastDist;
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, ts.lastScale * scaleFactor));
+      const deltaX = c.x - ts.lastCenterX;
+      const deltaY = c.y - ts.lastCenterY;
+      const newX = Math.max(20, Math.min(r.width - 20, ts.lastFlowerX + deltaX));
+      const newY = Math.max(10, Math.min(r.height - 10, ts.lastFlowerY + deltaY));
+      ts.lastDist = d; ts.lastScale = newScale;
+      ts.lastCenterX = c.x; ts.lastCenterY = c.y;
+      ts.lastFlowerX = newX; ts.lastFlowerY = newY;
+      saveHist(placed);
+      setPlaced(p => p.map(f => f.uid === ts.flowerUid ? { ...f, scale: newScale, x: newX, y: newY, stemBend: (centerX - newX) / (r.width * 0.4) } : f));
+    }
+  }, [placed]);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (!e.touches?.length) touchStateRef.current = null;
+  }, []);
 
   const validateEmail = v => {
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -518,22 +597,51 @@ function FlowerLetter() {
     return ok;
   };
 
+  const letterText = `${subject ? subject+"\n\n" : ""}${letter}\n\n— ${sender}`;
   const copyLetter = () => {
-    const txt = `${subject ? subject+"\n\n" : ""}${letter}\n\n— ${sender}`;
-    navigator.clipboard.writeText(txt).then(() => setToast("Copied to clipboard ✓"));
+    navigator.clipboard.writeText(letterText).then(() => setToast("Copied to clipboard ✓"));
+  };
+
+  const canSend3 = recipient.name && recipient.email && !emailErr && sender;
+
+  const sendLetter = async () => {
+    if (!canSend3 || sending) return;
+    setSendError(null);
+    setSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/send-letter`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to_email: recipient.email,
+          to_name: recipient.name,
+          from_name: sender,
+          subject: subject || `A letter from ${sender}`,
+          message: letterText,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Failed to send (${res.status})`);
+      setSent(true);
+      setToast("Letter sent! ✓");
+    } catch (err) {
+      setSendError(err.message || "Failed to send. Deploy to Vercel and add RESEND_API_KEY.");
+      setToast("Could not send. See instructions below.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const reset = () => {
     setStep(1); setPlaced([]); setHistory([]); setLetter(""); setSubject("");
     setFontSize(22); setFont(HANDWRITING_FONTS[2]); setLs(LETTER_STYLES[0]);
-    setRecipient({name:"",email:""}); setSender(""); setSent(false); setEmailErr("");
+    setRecipient({name:"",email:""}); setSender(""); setSent(false); setSendError(null); setEmailErr("");
   };
 
   const linesBg = ls.lines
     ? `repeating-linear-gradient(transparent, transparent 31px, rgba(0,0,0,0.06) 32px)`
     : "none";
   const canSend2 = letter.trim().length > 0;
-  const canSend3 = recipient.name && recipient.email && !emailErr && sender;
   const charsLeft = MAX_CHARS - letter.length;
 
   // ── Step pill UI ─────────────────────────────────────────────────────────
@@ -609,7 +717,7 @@ function FlowerLetter() {
               Arrange your bouquet
             </h2>
             <p style={{ color:P.driftwood, fontSize:12, margin:"0 0 16px" }}>
-              Click to add · drag to rearrange · hover (or tap) to delete
+              Click to add · drag to move · pinch to resize · click a flower to select
             </p>
 
             {/* Flower picker — chartreuse background */}
@@ -640,12 +748,15 @@ function FlowerLetter() {
             {/* Canvas — peach background */}
             <div ref={canvasRef}
               onMouseMove={onMove} onMouseUp={endDrag} onMouseLeave={endDrag}
-              onTouchMove={onMove} onTouchEnd={endDrag}
+              onTouchMove={e => { if (touchStateRef.current) handleTouchMove(e); else if (dragging) { e.preventDefault(); onMove(e); } }}
+              onTouchEnd={e => { handleTouchEnd(e); endDrag(); }}
+              onMouseDown={e => { if (e.target === canvasRef.current) setActiveFlower(null); }}
               style={{
                 position:"relative", width:"100%", height:390,
                 background: P.peach,
                 border:`1.5px solid ${P.stone}`, borderRadius:16, overflow:"hidden",
                 cursor: dragging ? "grabbing" : "default",
+                touchAction: "none",
               }}>
 
               {placed.length === 0 && (
@@ -664,9 +775,8 @@ function FlowerLetter() {
                 return (
                   <div key={f.uid}
                     onMouseDown={e => startDrag(e, f.uid)}
-                    onTouchStart={e => { setActiveFlower(f.uid); startDrag(e, f.uid); }}
-                    onMouseEnter={() => { if (!dragging) setActiveFlower(f.uid); }}
-                    onMouseLeave={() => { if (!dragging) setActiveFlower(null);  }}
+                    onTouchStart={e => handleTouchStart(e, f.uid)}
+                    onClick={e => { if (!isDragged) setActiveFlower(prev => prev === f.uid ? null : f.uid); }}
                     style={{
                       position:"absolute", left:f.x, top:f.y,
                       transform:`translate(-50%,0) rotate(${f.rot}deg) scale(${f.scale})`,
@@ -679,31 +789,10 @@ function FlowerLetter() {
                           ? `drop-shadow(0 0 6px ${P.amber}cc)`
                           : "none",
                       transition: isDragged ? "none" : "filter 0.15s",
+                      display:"flex", flexDirection:"column", alignItems:"center",
                     }}>
 
-                    {/* ── Delete button — visible on hover / tap ── */}
-                    {isActive && !isDragged && (
-                      <button
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); removeFlower(f.uid); setActiveFlower(null); }}
-                        aria-label={`Remove ${f.name}`}
-                        title={`Remove ${f.name}`}
-                        style={{
-                          position:"absolute", top:-10, right:-8,
-                          width:26, height:26,
-                          background: P.terracotta, color:"#fff",
-                          border:"2.5px solid #fff", borderRadius:"50%",
-                          fontSize:15, fontWeight:800, lineHeight:1, padding:0,
-                          cursor:"pointer", zIndex:200,
-                          display:"flex", alignItems:"center", justifyContent:"center",
-                          boxShadow:"0 2px 8px rgba(0,0,0,0.35)",
-                          userSelect:"none",
-                          fontFamily:"sans-serif",
-                        }}
-                      >×</button>
-                    )}
-
-                    <StemmedFlower flower={f} size={1} stemCurve={f.stemCurve} />
+                    <StemmedFlower flower={f} size={1} stemCurve={f.stemCurve} stemBend={f.stemBend ?? 0} />
                   </div>
                 );
               })}
@@ -714,10 +803,20 @@ function FlowerLetter() {
 
             {/* Controls */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:12, flexWrap:"wrap", gap:8 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                 <span style={{ color:P.driftwood, fontSize:12 }}>{placed.length}/{MAX_FLOWERS} flowers</span>
                 <GhostBtn onClick={undo} disabled={!history.length} hoverColor={P.periwinkle}>↩ Undo</GhostBtn>
+                <GhostBtn onClick={() => { if (activeFlower) { removeFlower(activeFlower); setActiveFlower(null); } }} disabled={!activeFlower} hoverColor={P.coral}>Delete</GhostBtn>
                 <GhostBtn onClick={clear} disabled={!placed.length} hoverColor={P.coral}>✕ Clear</GhostBtn>
+                {activeFlower && (
+                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <span style={{ color:P.driftwood, fontSize:11, fontFamily:BODY }}>Size</span>
+                    <button onClick={() => adjustFlowerSize(activeFlower, -SCALE_STEP)} disabled={!activeFlower}
+                      style={{ width:28, height:28, background:P.sage, border:"none", borderRadius:8, color:P.bark, fontSize:16, fontWeight:700, cursor:"pointer", lineHeight:1 }}>−</button>
+                    <button onClick={() => adjustFlowerSize(activeFlower, SCALE_STEP)} disabled={!activeFlower}
+                      style={{ width:28, height:28, background:P.sage, border:"none", borderRadius:8, color:P.bark, fontSize:16, fontWeight:700, cursor:"pointer", lineHeight:1 }}>+</button>
+                  </div>
+                )}
               </div>
               <PrimaryBtn onClick={() => setStep(2)} disabled={placed.length===0} bg={P.terracotta}>
                 Write the letter →
@@ -860,7 +959,7 @@ function FlowerLetter() {
                     transform:`translateX(${(i - Math.min(placed.length,7)/2)*10}px) rotate(${(i-3)*7}deg) scale(0.45)`,
                     transformOrigin:"50% 100%",
                   }}>
-                    <StemmedFlower flower={f} size={0.85} stemCurve={f.stemCurve||0} />
+                    <StemmedFlower flower={f} size={0.85} stemCurve={f.stemCurve||0} stemBend={f.stemBend??0} />
                   </div>
                 ))}
                 <BouquetPaper compact />
@@ -905,10 +1004,15 @@ function FlowerLetter() {
               </div>
             </div>
 
+            {sendError && (
+              <div style={{ marginTop:12, padding:12, background:P.iceBlue, borderRadius:12, fontSize:12, color:P.forestGreen }}>
+                <strong>Setup:</strong> Deploy to Vercel, add RESEND_API_KEY in project settings. See RESEND_SETUP.md.
+              </div>
+            )}
             <div style={{ display:"flex", gap:10, justifyContent:"space-between", marginTop:16, flexWrap:"wrap" }}>
-              <GhostBtn onClick={() => setStep(2)}>← Back</GhostBtn>
-              <PrimaryBtn onClick={() => { if (canSend3) setSent(true); }} disabled={!canSend3} bg={P.terracotta}>
-                🕊 Send it →
+              <GhostBtn onClick={() => setStep(2)} disabled={sending}>← Back</GhostBtn>
+              <PrimaryBtn onClick={sendLetter} disabled={!canSend3 || sending} bg={P.terracotta}>
+                {sending ? "Sending…" : "🕊 Send it →"}
               </PrimaryBtn>
             </div>
           </div>
@@ -925,8 +1029,8 @@ function FlowerLetter() {
               fontSize:"clamp(40px,8vw,72px)", color: P.forestGreen, margin:"0 0 10px", letterSpacing:-1 }}>
               It's on its way
             </h2>
-            <p style={{ color:P.driftwood, fontFamily:BODY, fontSize:13, letterSpacing:1, marginBottom:36 }}>
-              {recipient.name} will receive your letter
+            <p style={{ color:P.driftwood, fontFamily:BODY, fontSize:13, letterSpacing:1, marginBottom:32 }}>
+              Your letter was sent to {recipient.name} at {recipient.email}
             </p>
 
             {/* Wrapped bouquet */}
@@ -939,7 +1043,7 @@ function FlowerLetter() {
                     transform:`rotate(${(i - Math.min(placed.length,8)/2)*6}deg) scale(0.8)`,
                     transformOrigin:"50% 100%",
                   }}>
-                    <StemmedFlower flower={f} size={0.9} stemCurve={f.stemCurve||0} />
+                    <StemmedFlower flower={f} size={0.9} stemCurve={f.stemCurve||0} stemBend={f.stemBend??0} />
                   </div>
                 ))}
               </div>
