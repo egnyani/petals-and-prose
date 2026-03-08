@@ -992,7 +992,7 @@ export default function FlowerLetter() {
 
             {sendError && (
               <div style={{ marginTop:12, padding:12, background:P.iceBlue, borderRadius:12, fontSize:12, color:P.forestGreen }}>
-                <strong>Setup:</strong> Deploy to Vercel, add RESEND_API_KEY in project settings. See RESEND_SETUP.md.
+                <strong>Error:</strong> {sendError}
               </div>
             )}
             <div style={{ display:"flex", gap:10, justifyContent:"space-between", marginTop:16, flexWrap:"wrap" }}>
